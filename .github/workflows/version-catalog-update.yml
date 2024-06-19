@@ -30,7 +30,7 @@ jobs:
             echo "::set-output name=has_changes::true"
           fi
 
-  tests-and-build:
+  tests:
     if: needs.version-catalog-update.outputs.has_changes == 'true'
     needs: version-catalog-update
     runs-on: ubuntu-latest
@@ -44,12 +44,25 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew test
 
+  build:
+    if: needs.version-catalog-update.outputs.has_changes == 'true'
+    needs: version-catalog-update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+
       - name: Build Release
         run: ./gradlew assembleRelease
 
   create-pr:
-    if: needs.tests-and-build.result == 'success'
-    needs: tests-and-build
+    if: success()
+    needs:
+      - tests
+      - build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
