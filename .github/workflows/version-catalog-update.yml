@@ -1,3 +1,4 @@
+# .github/workflows/version-catalog-update.yml
 name: Version Catalog Update
 
 on:
@@ -11,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          ref: develop
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment
@@ -35,28 +38,18 @@ jobs:
     needs: version-catalog-update
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-environment
-
-      - name: Run Unit Tests
-        run: ./gradlew test
+      - uses: ./.github/workflows/execute-tests.yml
+        with:
+          checkout_branch: 'develop'
 
   build:
     if: needs.version-catalog-update.outputs.has_changes == 'true'
     needs: version-catalog-update
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Setup environment
-        uses: ./.github/actions/setup-environment
-
-      - name: Build Release
-        run: ./gradlew assembleRelease
+      - uses: ./.github/workflows/execute-build.yml
+        with:
+          checkout_branch: 'develop'
 
   create-pr:
     if: success()
@@ -67,6 +60,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+        with:
+          ref: develop
 
       - name: Configure git
         run: |
