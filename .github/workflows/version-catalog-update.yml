@@ -7,16 +7,16 @@ jobs:
     version-catalog-update:
         runs-on: ubuntu-latest
         outputs:
-            version_catalog_output: ${{ steps.version_catalog_update.outputs.result }}
+            has_changes: ${{ steps.check_changes.outputs.has_changes }}
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
 
-            - name: Set up JDK 11
+            - name: Set up JDK 17
               uses: actions/setup-java@v3
               with:
-                  distribution: 'adopt'
-                  java-version: '11'
+                  distribution: 'temurin'
+                  java-version: '17'
 
             - name: Cache Gradle packages
               uses: actions/cache@v3
@@ -31,31 +31,41 @@ jobs:
             - name: Set up Android SDK
               uses: android-actions/setup-android@v2
               with:
-                  api-levels: 33
-                  build-tools: 33.0.2
-                  components: build-tools;33.0.2
+                  api-levels: 34
+                  build-tools: 34.0.0
+                  components: build-tools;34.0.0
 
             - name: Grant execute permission for gradlew
               run: chmod +x ./gradlew
 
             - name: Run versionCatalogUpdate
               id: version_catalog_update
+              run: ./gradlew versionCatalogUpdate
+
+            - name: Check for changes
+              id: check_changes
               run: |
-                  ./gradlew versionCatalogUpdate
-                  echo "::set-output name=result::success"
+                  if git diff --quiet; then
+                    echo "No changes detected"
+                    echo "::set-output name=has_changes::false"
+                  else
+                    echo "Changes detected"
+                    echo "::set-output name=has_changes::true"
+                  fi
 
     tests-and-build:
+        if: needs.version-catalog-update.outputs.has_changes == 'true'
         needs: version-catalog-update
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
 
-            - name: Set up JDK 11
+            - name: Set up JDK 17
               uses: actions/setup-java@v3
               with:
-                  distribution: 'adopt'
-                  java-version: '11'
+                  distribution: 'temurin'
+                  java-version: '17'
 
             - name: Cache Gradle packages
               uses: actions/cache@v3
@@ -70,9 +80,9 @@ jobs:
             - name: Set up Android SDK
               uses: android-actions/setup-android@v2
               with:
-                  api-levels: 33
-                  build-tools: 33.0.2
-                  components: build-tools;33.0.2
+                  api-levels: 34
+                  build-tools: 34.0.0
+                  components: build-tools;34.0.0
 
             - name: Grant execute permission for gradlew
               run: chmod +x ./gradlew
@@ -84,9 +94,9 @@ jobs:
               run: ./gradlew assembleRelease
 
     create-pr:
+        if: needs.tests-and-build.result == 'success'
         needs: tests-and-build
         runs-on: ubuntu-latest
-        if: needs.tests-and-build.result == 'success'
         steps:
             - name: Checkout code
               uses: actions/checkout@v2
