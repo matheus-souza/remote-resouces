@@ -1,9 +1,12 @@
 name: Execute build
 
-inputs:
-  checkout_branch:
-    description: 'Branch to checkout before building'
-    required: true
+on:
+  workflow_call:
+    inputs:
+      checkout_branch:
+        description: 'Branch to checkout before building'
+        required: true
+        type: string
 
 jobs:
   execute-build:
