@@ -1,147 +1,84 @@
 name: Version Catalog Update
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
-    version-catalog-update:
-        runs-on: ubuntu-latest
-        outputs:
-            has_changes: ${{ steps.check_changes.outputs.has_changes }}
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
+  version-catalog-update:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check_changes.outputs.has_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-            - name: Set up JDK 17
-              uses: actions/setup-java@v3
-              with:
-                  distribution: 'temurin'
-                  java-version: '17'
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
 
-            - name: Cache Gradle packages
-              uses: actions/cache@v3
-              with:
-                  path: |
-                      ~/.gradle/caches
-                      ~/.gradle/wrapper
-                  key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-                  restore-keys: |
-                      gradle-${{ runner.os }}-
+      - name: Run versionCatalogUpdate
+        id: version_catalog_update
+        run: ./gradlew versionCatalogUpdate
 
-            - name: Set up Android SDK
-              uses: android-actions/setup-android@v2
-              with:
-                  api-levels: 34
-                  build-tools: 34.0.0
-                  components: build-tools;34.0.0
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes detected"
+            echo "::set-output name=has_changes::false"
+          else
+            echo "Changes detected"
+            echo "::set-output name=has_changes::true"
+          fi
 
-            - name: Grant execute permission for gradlew
-              run: chmod +x ./gradlew
+  tests-and-build:
+    if: needs.version-catalog-update.outputs.has_changes == 'true'
+    needs: version-catalog-update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-            - name: Run versionCatalogUpdate
-              id: version_catalog_update
-              run: ./gradlew versionCatalogUpdate
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
 
-            - name: Check for changes
-              id: check_changes
-              run: |
-                  if git diff --quiet; then
-                    echo "No changes detected"
-                    echo "::set-output name=has_changes::false"
-                  else
-                    echo "Changes detected"
-                    echo "::set-output name=has_changes::true"
-                  fi
+      - name: Run Unit Tests
+        run: ./gradlew test
 
-    tests-and-build:
-        if: needs.version-catalog-update.outputs.has_changes == 'true'
-        needs: version-catalog-update
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
+      - name: Build Release
+        run: ./gradlew assembleRelease
 
-            - name: Set up JDK 17
-              uses: actions/setup-java@v3
-              with:
-                  distribution: 'temurin'
-                  java-version: '17'
+  create-pr:
+    if: needs.tests-and-build.result == 'success'
+    needs: tests-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-            - name: Cache Gradle packages
-              uses: actions/cache@v3
-              with:
-                  path: |
-                      ~/.gradle/caches
-                      ~/.gradle/wrapper
-                  key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-                  restore-keys: |
-                      gradle-${{ runner.os }}-
+      - name: Configure git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-            - name: Set up Android SDK
-              uses: android-actions/setup-android@v2
-              with:
-                  api-levels: 34
-                  build-tools: 34.0.0
-                  components: build-tools;34.0.0
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
 
-            - name: Grant execute permission for gradlew
-              run: chmod +x ./gradlew
+      - name: Run versionCatalogUpdate
+        id: version_catalog_update
+        run: ./gradlew versionCatalogUpdate
 
-            - name: Run Unit Tests
-              run: ./gradlew test
+      - name: Create a new branch
+        run: |
+          git checkout -b update-version-catalog
+          git add .
+          git commit -m "Update version catalog"
 
-            - name: Build Release
-              run: ./gradlew assembleRelease
+      - name: Push changes
+        run: |
+          git push --set-upstream origin update-version-catalog
 
-    create-pr:
-        if: needs.tests-and-build.result == 'success'
-        needs: tests-and-build
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v2
-
-            - name: Configure git
-              run: |
-                  git config --global user.name 'github-actions[bot]'
-                  git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-
-            - name: Cache Gradle packages
-              uses: actions/cache@v3
-              with:
-                  path: |
-                      ~/.gradle/caches
-                      ~/.gradle/wrapper
-                  key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-                  restore-keys: |
-                      gradle-${{ runner.os }}-
-
-            - name: Set up Android SDK
-              uses: android-actions/setup-android@v2
-              with:
-                  api-levels: 34
-                  build-tools: 34.0.0
-                  components: build-tools;34.0.0
-
-            - name: Grant execute permission for gradlew
-              run: chmod +x ./gradlew
-
-            - name: Run versionCatalogUpdate
-              id: version_catalog_update
-              run: ./gradlew versionCatalogUpdate
-
-            - name: Create a new branch
-              run: |
-                  git checkout -b update-version-catalog
-                  git add .
-                  git commit -m "Update version catalog"
-
-            - name: Push changes
-              run: |
-                  git push --set-upstream origin update-version-catalog
-
-            - name: Create Pull Request
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: |
-                  gh pr create --title "Update version catalog" --body "Automated update of version catalog" --base develop --head update-version-catalog
+      - name: Create Pull Request
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create --title "Update version catalog" --body "Automated update of version catalog" --base develop --head update-version-catalog
