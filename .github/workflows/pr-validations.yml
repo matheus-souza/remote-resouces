@@ -1,0 +1,33 @@
+name: PR Build and Test
+
+on:
+  pull_request:
+
+jobs:
+  setup-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      checkout_sha: ${{ steps.get_sha.outputs.sha }}
+    steps:
+      - name: Checkout code
+        id: checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Get commit SHA
+        id: get_sha
+        run: echo "::set-output name=sha::$(git rev-parse HEAD)"
+
+  execute-tests:
+    needs: setup-environment
+    uses: ./.github/workflows/execute-tests.yml
+    with:
+      checkout_branch: ${{ needs.setup-environment.outputs.checkout_sha }}
+
+
+  execute-build:
+    needs: setup-environment
+    uses: ./.github/workflows/execute-build.yml
+    with:
+      checkout_branch: ${{ needs.setup-environment.outputs.checkout_sha }}
