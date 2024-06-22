@@ -1,0 +1,24 @@
+name: Execute tests
+
+on:
+  workflow_call:
+    inputs:
+      checkout_branch:
+        description: 'Branch to checkout before running tests'
+        required: true
+        type: string
+
+jobs:
+  execute-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ inputs.checkout_branch }}
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+
+      - name: Run Unit Tests
+        run: ./gradlew test
